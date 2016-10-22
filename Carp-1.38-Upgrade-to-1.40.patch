@@ -1,0 +1,118 @@
+diff --git a/Changes b/Changes
+index b55b49f..dca6a52 100644
+--- a/Changes
++++ b/Changes
+@@ -1,4 +1,12 @@
+ 
++version 1.40; 2016-03-10
++  * Get arg_string.t to compile in perl v5.6
++  * Add information for how to contribute to Carp.
++
++version 1.39; 2016-03-06
++  * bugfix: longmess() should return the error in scalar context
++  (CPANRT#107225)
++
+ version 1.38; 2015-11-06
+   * stable release of changes since v1.36
+ 
+diff --git a/lib/Carp.pm b/lib/Carp.pm
+index 9421c74..92f8866 100644
+--- a/lib/Carp.pm
++++ b/lib/Carp.pm
+@@ -87,7 +87,7 @@ BEGIN {
+     }
+ }
+ 
+-our $VERSION = '1.38';
++our $VERSION = '1.40';
+ $VERSION =~ tr/_//d;
+ 
+ our $MaxEvalLen = 0;
+@@ -445,7 +445,9 @@ sub long_error_loc {
+ }
+ 
+ sub longmess_heavy {
+-    return @_ if ref( $_[0] );    # don't break references as exceptions
++    if ( ref( $_[0] ) ) {   # don't break references as exceptions
++        return wantarray ? @_ : $_[0];
++    }
+     my $i = long_error_loc();
+     return ret_backtrace( $i, @_ );
+ }
+@@ -906,6 +908,12 @@ call die() or warn(), as appropriate.
+ L<Carp::Always>,
+ L<Carp::Clan>
+ 
++=head1 CONTRIBUTING
++
++L<Carp> is maintained by the perl 5 porters as part of the core perl 5
++version control repository. Please see the L<perlhack> perldoc for how to
++submit patches and contribute to it.
++
+ =head1 AUTHOR
+ 
+ The Carp module first appeared in Larry Wall's perl 5.000 distribution.
+diff --git a/lib/Carp/Heavy.pm b/lib/Carp/Heavy.pm
+index 91a42d1..b05d758 100644
+--- a/lib/Carp/Heavy.pm
++++ b/lib/Carp/Heavy.pm
+@@ -2,7 +2,7 @@ package Carp::Heavy;
+ 
+ use Carp ();
+ 
+-our $VERSION = '1.38';
++our $VERSION = '1.40';
+ $VERSION =~ tr/_//d;
+ 
+ # Carp::Heavy was merged into Carp in version 1.12.  Any mismatched versions
+diff --git a/t/Carp.t b/t/Carp.t
+index a18e3b4..9ecdf88 100644
+--- a/t/Carp.t
++++ b/t/Carp.t
+@@ -3,7 +3,7 @@ no warnings "once";
+ use Config;
+ 
+ use IPC::Open3 1.0103 qw(open3);
+-use Test::More tests => 65;
++use Test::More tests => 66;
+ 
+ sub runperl {
+     my(%args) = @_;
+@@ -39,6 +39,24 @@ BEGIN {
+   );
+ }
+ 
++package MyClass;
++
++sub new { return bless +{ field => ['value1', 'SecondVal'] }; }
++
++package main;
++
++{
++    my $err = Carp::longmess(MyClass->new);
++
++    # See:
++    # https://rt.cpan.org/Public/Bug/Display.html?id=107225
++    is_deeply(
++        $err->{field},
++        ['value1', 'SecondVal',],
++        "longmess returns sth meaningful in scalar context when passed a ref.",
++    );
++}
++
+ {
+     local $SIG{__WARN__} = sub {
+         like $_[0], qr/ok (\d+)\n at.+\b(?i:carp\.t) line \d+\.$/, 'ok 2\n';
+diff --git a/t/arg_string.t b/t/arg_string.t
+index 42b43b1..dbd2e6e 100644
+--- a/t/arg_string.t
++++ b/t/arg_string.t
+@@ -15,7 +15,7 @@ my $e9 = sprintf "%02x", (($] ge 5.007_003)
+                           : ((ord("A") == 193)
+                              ? 0x51
+                              : 0xE9));
+-my $chr_e9 = chr utf8::unicode_to_native(0xe9);
++my $chr_e9 = chr eval "0x$e9";
+ my $nl_as_hex = sprintf "%x", ord("\n");
+ 
+ like lm(3), qr/main::lm\(3\)/;
